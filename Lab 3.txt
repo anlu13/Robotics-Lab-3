@@ -1,0 +1,5 @@
+This is the third lab in COMP.4500 Mobile Robotics
+1- Please read the instructions carefully
+2- Submit only the requested files through Blackboard (submissions received through email or slack will not be graded)
+3- One submission per group.
+3- Be aware of the late policy for the labs. You can find all information in class syllabus.
