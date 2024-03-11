@@ -57,6 +57,14 @@ def getSide():
             return Hexagons4
         print("Bad input")
 
+# Calculate pose w.r.t other pose
+def GetPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
+    x = pose.position.x - origin.position.x
+    y = pose.position.y - origin.position.y
+    angle_z = pose.rotation.angle_z - origin.rotation.angle_z
+
+    return cozmo.util.Pose(x, y, 0, angle_z=angle_z)
+
 async def run(robot: cozmo.robot.Robot):
     # Define the two cubes as custom objects
     cube1 = await robot.world.define_custom_box(CustomObjectTypes.CustomType00, Circles2, Circles3,
@@ -136,42 +144,52 @@ async def run(robot: cozmo.robot.Robot):
         # search for cube
         elif(RobotSM.searching.is_active):
             if(RobotSM.lastDir == Direction.Right):
-                await robot.drive_wheels(10, -10, duration = 10)
+                await robot.drive_wheels(10, -10)
             else:
-                await robot.drive_wheels(-10, 10, duration = 10)
+                await robot.drive_wheels(-10, 10)
 
             # wait until object found
             event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=None)
+            robot.stop_all_motors()
             # check if object is desired cube
             if(event.obj.object_type == RobotSM.destCube.object_type):
                 RobotSM.cube_found()
         elif(RobotSM.moving.is_active):
             try:
                 # ensure cube is still visible
-                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=100)
+                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
                 # grab cube pose
                 RobotSM.cubePose = event.pose
+                print(RobotSM.cubePose.position)
+                print(robot.pose.position)
                 # get pose w.r.t robot
                 # TODO: Change pose so that desired face is considered front
-                RobotSM.cubePose = robot.pose.define_pose_relative_this(RobotSM.cubePose)
+                RobotSM.cubePose = GetPose(RobotSM.cubePose, robot.pose)
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
                 x = RobotSM.cubePose.position.x
                 y = RobotSM.cubePose.position.y
                 angle = math.atan(y / x)
-                dist = math.hypot((x, y))
+                dist = math.hypot(x, y)
+                print(x, y)
+                print(dist)
+                print(angle)
+                print(RobotSM.cubePose.rotation.angle_z)
                 # set search direction
-                if(y < 0):
+                if(angle < 0):
                     RobotSM.lastDir = Direction.Right
                 else:
                     RobotSM.lastDir = Direction.Left
                 # determine if robot is at cube
-                if(dist < 40):
+                if(dist < 80):
                     # change states
+                    await robot.drive_wheels(0, 0, duration=1)
                     RobotSM.at_cube()
                 else:
                     # move to cube
-                    await robot.drive_wheels(dist - angle * 5, dist + angle * 5, duration = 10)
-            except TimeoutError:
+                    await robot.drive_wheels(dist / 4 - angle * 10, 
+                                             dist / 4 + angle * 10)
+            except asyncio.exceptions.TimeoutError:
+                await robot.drive_wheels(0, 0, duration=1)
                 RobotSM.cube_lost()
         elif(RobotSM.driving_around.is_active):
             print("Somehow rotate around the cube")
