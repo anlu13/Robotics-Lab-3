@@ -1,11 +1,11 @@
 import asyncio
 import cozmo
 import time
+import math
+from cozmo.objects import CustomObjectTypes, CustomObjectMarkers
 from statemachine import StateMachine, State
 from enum import Enum
 
-# Define the custom type that will be used
-CustomType = cozmo.objects.CustomObjectTypes.CustomType00
 # Define the custom markers that will be used
 Circles2 = cozmo.objects.CustomObjectMarkers.Circles2
 Circles3 = cozmo.objects.CustomObjectMarkers.Circles3
@@ -27,14 +27,7 @@ MarkerSide = 25
 # Define direction enumeration
 Direction = Enum("Direction", ["Left", "Right"])
 
-# Define the two cubes as custom objects
-cube1 = cozmo.world.World.define_custom_box(CustomType, Circles2, Circles3, Circles4, 
-                                           Triangles4, Triangles3, Triangles2, CubeSide, 
-                                           CubeSide, CubeSide, MarkerSide, MarkerSide)
-cube2 = cozmo.world.World.define_custom_box(CustomType, Diamonds2, Diamonds3, Diamonds4, 
-                                           Hexagons4, Hexagons3, Hexagons2, CubeSide, 
-                                           CubeSide, CubeSide, MarkerSide, MarkerSide)
-
+# Get input for sides
 def getSide():
     while(True):
         side = input("What side should the robot find? ")
@@ -64,69 +57,129 @@ def getSide():
             return Hexagons4
         print("Bad input")
 
-def getCube(side):
-    if(side in [Circles2, Circles3, Circles4, Triangles2, Triangles3, Triangles4]):
-        return cube1
-    else:
-        return cube2
-
-class RobotMachine(StateMachine):
-    "State Machine for Cozmo"
-    waiting = State(initial=True)
-    searching = State()
-    moving = State()
-
-    cancel = (
-        searching.to(waiting)
-        | moving.to(waiting)
-    )   
-    receive_side = waiting.to(searching)
-    cube_found = searching.to(moving)
-    cube_lost = moving.to(searching)
-    at_cube = moving.to(waiting)
-
-    def __init__(self):
-        self.destMarker = None
-        self.destCube = None
-        self.lastDir = Direction.Left
-
-    def on_enter_waiting(self):
-        print("Starting waiting")
-        
-    def on_exit_waiting(self):
-        print("Stopping waiting")
-    def on_enter_searching(self):
-        print("Starting searching")
-        if(self.lastDir == Direction.Right):
-            cozmo.robot.Robot.drive_wheels(10, 0)
-        else:
-            cozmo.robot.Robot.drive_wheels(0, 10)
-    def on_exit_searching(self):
-        print("Stopping searching")
-        cozmo.robot.Robot.drive_wheels(0, 0)
-    def on_enter_moving(self):
-        print("Starting moving")
-    def on_exit_moving(self):
-        print("Stopping moving")
-
-    def before_cancel(self):
-        print("Cancelling actions")
-
-    def before_receive_side(self, marker):
-        self.destMarker = marker
-        self.destCube = getCube(marker)
-
-RobotSM = RobotMachine()
 async def run(robot: cozmo.robot.Robot):
+    # Define the two cubes as custom objects
+    cube1 = await robot.world.define_custom_box(CustomObjectTypes.CustomType00, Circles2, Circles3,
+                                                Circles4, Triangles2, Triangles3, Triangles4, CubeSide, 
+                                                CubeSide, CubeSide, MarkerSide, MarkerSide, True)
+    cube2 = await robot.world.define_custom_box(CustomObjectTypes.CustomType01, Diamonds2, Diamonds3, 
+                                                Diamonds4, Hexagons4, Hexagons3, Hexagons2, CubeSide, 
+                                                CubeSide, CubeSide, MarkerSide, MarkerSide, True)
+    if(cube1 is None or cube2 is None):
+        print("Failed cubes")
+        return
+
+    # Get corresponding cube from side
+    def getCube(side):
+        if(side in [Circles2, Circles3, Circles4, Triangles2, Triangles3, Triangles4]):
+            return cube1
+        else:
+            return cube2
+
+    class RobotMachine(StateMachine):
+        "State Machine for Cozmo"
+        waiting = State(initial=True)
+        searching = State()
+        moving = State()
+        driving_around = State()
+
+        receive_side = waiting.to(searching)
+        cube_found = searching.to(moving)
+        cube_lost = (
+            moving.to(searching)
+            | driving_around.to(searching)
+        )
+        at_cube = moving.to(driving_around)
+        at_side = driving_around.to(searching)
+
+        def __init__(self):
+            self.destMarker = None
+            self.destCube = None
+            self.secondaryMarker = None
+            self.cubePose = None
+            self.lastDir = Direction.Left
+            super(RobotMachine, self).__init__()
+
+        def on_enter_waiting(self):
+            print("Starting waiting")
+        def on_exit_waiting(self):
+            print("Stopping waiting")
+        def on_enter_searching(self):
+            print("Starting searching")
+        def on_exit_searching(self):
+            print("Stopping searching")
+        def on_enter_moving(self):
+            print("Starting moving")
+        def on_exit_moving(self):
+            print("Stopping moving")
+
+        # set destination cube
+        def before_receive_side(self, marker1, marker2):
+            self.destMarker = marker1
+            self.destCube = getCube(marker1)
+            self.secondaryMarker = marker2
+
+        # set secondary destination as primary
+        def before_at_side(self):
+            temp = self.destMarker
+            self.destMarker = self.secondaryMarker
+            self.secondaryMarker = temp
+            self.destCube = getCube(self.destMarker)
+
+    RobotSM = RobotMachine()
     while(True):
-        if(RobotSM.current_state == RobotMachine.waiting):
-            side = getSide()
-            RobotSM.receive_side(side)
-        elif(RobotSM.current_state == RobotMachine.searching):
-            event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout = None)
-            if(event.obj == RobotSM.destCube):
-                RobotSM.cube_found
-                cubePose = event.pose
-        elif(RobotSM.current_state == RobotMachine.moving):
-            # move to cube
-            print("bruh")
+        if(RobotSM.waiting.is_active):
+            # get side selection from user
+            side1 = getSide()
+            side2 = getSide()
+            RobotSM.receive_side(side1, side2)
+        # search for cube
+        elif(RobotSM.searching.is_active):
+            if(RobotSM.lastDir == Direction.Right):
+                await robot.drive_wheels(10, -10, duration = 10)
+            else:
+                await robot.drive_wheels(-10, 10, duration = 10)
+
+            # wait until object found
+            event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=None)
+            # check if object is desired cube
+            if(event.obj.object_type == RobotSM.destCube.object_type):
+                RobotSM.cube_found()
+        elif(RobotSM.moving.is_active):
+            try:
+                # ensure cube is still visible
+                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=100)
+                # grab cube pose
+                RobotSM.cubePose = event.pose
+                # get pose w.r.t robot
+                RobotSM.cubePose = robot.pose.define_pose_relative_this(RobotSM.cubePose)
+                # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
+                x = RobotSM.cubePose.position.x
+                y = RobotSM.cubePose.position.y
+                angle = math.atan(y / x)
+                dist = math.hypot((x, y))
+                # set search direction
+                if(y < 0):
+                    RobotSM.lastDir = Direction.Right
+                else:
+                    RobotSM.lastDir = Direction.Left
+                # determine if robot is at cube
+                if(dist < 40):
+                    # change states
+                    RobotSM.at_cube()
+                else:
+                    # move to cube
+                    await robot.drive_wheels(dist - angle * 5, dist + angle * 5, duration = 10)
+            except TimeoutError:
+                RobotSM.cube_lost()
+        elif(RobotSM.driving_around.is_active):
+            print("Somehow rotate around the cube")
+            # calculate angle needed to travel to specified face
+            # turn to face
+            #   turning radius = ((dist between wheels) / 2) * (vel outer + vel inner) / (vel outer - vel inner)
+            #   needs to either somehow keep pose in memory and continue to update it or create desired end pose
+            # once at face RobotSM.at_side() (will swap to second cube)
+            
+
+if __name__ == '__main__':
+    cozmo.run_program(run)
