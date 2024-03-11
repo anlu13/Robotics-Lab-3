@@ -152,6 +152,7 @@ async def run(robot: cozmo.robot.Robot):
                 # grab cube pose
                 RobotSM.cubePose = event.pose
                 # get pose w.r.t robot
+                # TODO: Change pose so that desired face is considered front
                 RobotSM.cubePose = robot.pose.define_pose_relative_this(RobotSM.cubePose)
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
                 x = RobotSM.cubePose.position.x
