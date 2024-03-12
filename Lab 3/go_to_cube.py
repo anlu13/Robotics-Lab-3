@@ -97,19 +97,19 @@ def adjustPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
 def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
     if(face == Circles2 or face == Diamonds2):
         return pose
-    if(face == Circles3 or face == Diamonds3):
+    if(face == Circles3 or face == Hexagons3):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(180)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
-    if(face == Triangles2 or face == Hexagons2):
+    if(face == Triangles2 or face == Hexagons4):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(90)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
-    if(face == Triangles3 or face == Hexagons4):
+    if(face == Triangles3 or face == Hexagons2):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(270)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
-    if(face == Circles4 or face == Diamonds4):
+    if(face == Circles4 or face == Diamonds2):
         if(pose.rotation.euler_angles[0] == 0):
             newAngle = pose.rotation.euler_angles[1]
         else:
@@ -174,8 +174,6 @@ async def run(robot: cozmo.robot.Robot):
         def on_exit_waiting(self):
             print("Stopping waiting")
         def on_enter_searching(self):
-            robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
-            time.sleep(1)
             print("Starting searching")
         def on_exit_searching(self):
             print("Stopping searching")
@@ -241,13 +239,15 @@ async def run(robot: cozmo.robot.Robot):
             side1 = getSide()
             side2 = getSide()
             await robot.say_text("Searching", in_parallel=True).wait_for_completed()
+            robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+            time.sleep(1)
             RobotSM.receive_side(side1, side2)
         # search for cube
         elif(RobotSM.searching.is_active):
             if(RobotSM.lastDir == Direction.Right):
-                await robot.drive_wheels(10, -10)
+                await robot.drive_wheels(5, -5)
             else:
-                await robot.drive_wheels(-10, 10)
+                await robot.drive_wheels(-5, 5)
 
             # wait until object found
             event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=None)
@@ -255,13 +255,13 @@ async def run(robot: cozmo.robot.Robot):
             # check if object is desired cube
             if(event.obj.object_type == RobotSM.destCube.object_type):
                 RobotSM.cube_found()
+                await robot.say_text("Moving", in_parallel=True).wait_for_completed()
                 await robot.display_oled_face_image(movingImg, 1000, in_parallel=True).wait_for_completed()
                 print("Starting moving")
-                await robot.say_text("Moving", in_parallel=True).wait_for_completed()
         elif(RobotSM.moving.is_active):
             try:
                 # ensure cube is still visible
-                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
+                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=2)
                 # grab cube pose
                 RobotSM.cubePose = event.pose
                 # get pose w.r.t robot
@@ -299,6 +299,8 @@ async def run(robot: cozmo.robot.Robot):
                 await robot.drive_wheels(0, 0, duration=1)
                 RobotSM.cube_lost()
                 await robot.say_text("Searching", in_parallel=True).wait_for_completed()
+                robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+                time.sleep(1)
         elif(RobotSM.driving_around.is_active):
             try:
                 event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
@@ -323,29 +325,36 @@ async def run(robot: cozmo.robot.Robot):
                 print(RobotSM.cubePose.rotation.angle_z.degrees)
                 cubeAngle = RobotSM.cubePose.rotation.angle_z.degrees
                 print("cube ", cubeAngle)
-                if(cubeAngle < 20 and cubeAngle > -20):
+                if(cubeAngle < 25 and cubeAngle > -25):
                     RobotSM.at_side()
+                    await robot.say_text("Searching", in_parallel=True).wait_for_completed()
+                    robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+                    time.sleep(1)
                 elif(cubeAngle < 0):
-                    await robot.drive_wheels(40, -40, duration=2)
-                    t = -1 * cubeAngle/ 25
-                    print(t)
-                    await robot.drive_wheels(27.5, 65, duration=t)
+                    await robot.drive_wheels(40, -40, duration=1.5)
+                    t = -1 * cubeAngle / 23
+                    await robot.drive_wheels(27.5, 55, duration=t)
                     await robot.drive_wheels(-20, 20, duration=1.5)
                     RobotSM.lastDir = Direction.Left
                     RobotSM.cube_lost()
                     await robot.say_text("Searching", in_parallel=True).wait_for_completed()
+                    robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+                    time.sleep(1)
                 else:
-                    await robot.drive_wheels(-40, 40, duration=2)
-                    t = cubeAngle / 25
-                    print(t)
-                    await robot.drive_wheels(65, 27.5, duration=t)
+                    await robot.drive_wheels(-40, 40, duration=1.5)
+                    t = cubeAngle / 23
+                    await robot.drive_wheels(55, 27.5, duration=t)
                     await robot.drive_wheels(20, -20, duration=1.5)
                     RobotSM.lastDir = Direction.Right
                     RobotSM.cube_lost()
                     await robot.say_text("Searching", in_parallel=True).wait_for_completed()
+                    robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+                    time.sleep(1)
             except asyncio.exceptions.TimeoutError:
                 RobotSM.cube_lost()
                 await robot.say_text("Searching", in_parallel=True).wait_for_completed()
+                robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+                time.sleep(1)
             
 
 if __name__ == '__main__':
