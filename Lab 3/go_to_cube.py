@@ -66,6 +66,7 @@ def adjustPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
     return cozmo.util.Pose(x, y, 0, angle_z=angle_z)
 
 def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
+    print(pose.rotation.euler_angles)
     if(face == Circles2 or face == Diamonds2):
         return pose
     if(face == Circles3 or face == Diamonds3):
@@ -81,17 +82,19 @@ def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
     if(face == Circles4 or face == Diamonds4):
-        newPose = pose
-        newAngle = pose.rotation.euler_angles[2]
-        newPose.rotation.euler_angles[2] = newPose.rotation.euler_angles[0]
-        newPose.rotation.angle_z = newAngle
-        return newPose
+        if(pose.rotation.euler_angles[0] == 0):
+            newAngle = pose.rotation.euler_angles[1]
+        else:
+            newAngle = pose.rotation.euler_angles[0]
+        return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
+                               angle_z=cozmo.util.radians(newAngle))
     else:
-        newPose = pose
-        newAngle = pose.rotation.euler_angles[2] * -1
-        newPose.rotation.euler_angles[2] = newPose.rotation.euler_angles[0] * -1
-        newPose.rotation.angle_z = newAngle
-        return newPose
+        if(pose.rotation.euler_angles[0] == 0):
+            newAngle = pose.rotation.euler_angles[1]
+        else:
+            newAngle = pose.rotation.euler_angles[0]
+        return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
+                               angle_z=cozmo.util.radians(newAngle))
 
 async def run(robot: cozmo.robot.Robot):
     # Define the two cubes as custom objects
@@ -195,8 +198,8 @@ async def run(robot: cozmo.robot.Robot):
                 RobotSM.cubePose = event.pose
                 # get pose w.r.t robot
                 # TODO: Change pose so that desired face is considered front
-                RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
                 RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
+                RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
                 x = RobotSM.cubePose.position.x
                 y = RobotSM.cubePose.position.y
@@ -214,8 +217,8 @@ async def run(robot: cozmo.robot.Robot):
                     RobotSM.at_cube()
                 else:
                     # move to cube
-                    await robot.drive_wheels(dist / 6 + angle * 3, 
-                                             dist / 6 - angle * 3)
+                    await robot.drive_wheels(dist / 6 + angle, 
+                                             dist / 6 - angle)
             except asyncio.exceptions.TimeoutError:
                 await robot.drive_wheels(0, 0, duration=1)
                 RobotSM.cube_lost()
@@ -224,9 +227,9 @@ async def run(robot: cozmo.robot.Robot):
                 event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
                 RobotSM.cubePose = event.pose
                 # adjust pose
-                RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
-                print(RobotSM.cubePose)
                 RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
+                print(RobotSM.cubePose)
+                RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
                 print(RobotSM.cubePose)
                 # get the robot to face the cube
                 x = RobotSM.cubePose.position.x
@@ -246,7 +249,7 @@ async def run(robot: cozmo.robot.Robot):
                     time = RobotSM.cubePose.rotation.angle_z.degrees / 17.5
                     await robot.drive_wheels(27.5, 65, duration=time)
                     await robot.drive_wheels(0, 0, duration=2)
-                    await robot.drive_wheels(-40, 40, duration=1.5)
+                    await robot.drive_wheels(-20, 20, duration=1.5)
                     RobotSM.lastDir = Direction.Left
                     RobotSM.cube_lost()
                 else:
@@ -254,7 +257,7 @@ async def run(robot: cozmo.robot.Robot):
                     time = -1 * RobotSM.cubePose.rotation.angle_z.degrees / 17.5
                     await robot.drive_wheels(65, 27.5, duration=time)
                     await robot.drive_wheels(0, 0, duration=2)
-                    await robot.drive_wheels(40, -40, duration=1.5)
+                    await robot.drive_wheels(20, -20, duration=1.5)
                     RobotSM.lastDir = Direction.Right
                     RobotSM.cube_lost()
                     
