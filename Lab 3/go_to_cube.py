@@ -205,7 +205,7 @@ async def run(robot: cozmo.robot.Robot):
     await robot.say_text("Waiting", in_parallel=True).wait_for_completed()
     
     # reset head position
-    await robot.set_head_angle(degrees(0)).wait_for_completed()
+    await robot.set_head_angle(degrees(-10)).wait_for_completed()
     print("set_head_angle")
 
     RobotSM = RobotMachine()
