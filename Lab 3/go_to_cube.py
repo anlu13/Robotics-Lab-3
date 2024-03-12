@@ -89,8 +89,6 @@ def adjustPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
     x = math.cos(originAngle) * diffX + math.sin(originAngle) * diffY
     y = math.cos(originAngle) * diffY - math.sin(originAngle) * diffX
     angle_z = pose.rotation.angle_z - origin.rotation.angle_z
-    print("c, r, e")
-    print (pose.rotation.angle_z, origin.rotation.angle_z, angle_z)
 
     return cozmo.util.Pose(x, y, 0, angle_z=angle_z)
 
@@ -214,24 +212,8 @@ async def run(robot: cozmo.robot.Robot):
     # reset head position
     await robot.set_head_angle(degrees(-10)).wait_for_completed()
     await robot.set_lift_height(0).wait_for_completed()
-    print("set_head_angle")
 
     RobotSM = RobotMachine()
-    async def moved_handler(evt, **kwargs):
-        print("movement")
-        if(event.obj.object_type == RobotSM.destCube.object_type):
-            RobotSM.cubePose = evt.pose
-            RobotSM.cubePose = poseByFace(RobotSM)
-            RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
-            x = RobotSM.cubePose.position.x
-            y = RobotSM.cubePose.position.y
-            angle = math.atan(y / x)
-            dist = math.hypot(x, y)
-            speedL = dist / 5 - angle * 50
-            speedR = dist / 5 + angle * 50
-            await robot.drive_wheels(speedL, speedR, duration=None)
-
-    robot.add_event_handler(cozmo.objects.EvtObjectMoving, moved_handler)
 
     while(True):
         if(RobotSM.waiting.is_active):
@@ -245,9 +227,9 @@ async def run(robot: cozmo.robot.Robot):
         # search for cube
         elif(RobotSM.searching.is_active):
             if(RobotSM.lastDir == Direction.Right):
-                await robot.drive_wheels(5, -5)
+                await robot.drive_wheels(7.5, -7.5)
             else:
-                await robot.drive_wheels(-5, 5)
+                await robot.drive_wheels(-7.5, 7.5)
 
             # wait until object found
             event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=None)
@@ -265,20 +247,14 @@ async def run(robot: cozmo.robot.Robot):
                 # grab cube pose
                 RobotSM.cubePose = event.pose
                 # get pose w.r.t robot
-                print("robot", robot.pose.position)
-                print("cube", RobotSM.cubePose.position)
-                print("Before AP: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
-                print("Before PBF: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
                 x = RobotSM.cubePose.position.x
                 y = RobotSM.cubePose.position.y
                 angle = math.atan(y / x)
                 dist = math.hypot(x, y)
-                print(x, y)
                 # set search direction
-                print(angle)
                 if(angle > 0):
                     RobotSM.lastDir = Direction.Right
                 else:
@@ -306,25 +282,18 @@ async def run(robot: cozmo.robot.Robot):
                 event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
                 RobotSM.cubePose = event.pose
                 # adjust pose
-                print(robot.pose.position)
-                print(RobotSM.cubePose.position)
-                print("Before PBF: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
-                print("Before AP: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
                 # get the robot to face the cube
                 x = RobotSM.cubePose.position.x
                 y = RobotSM.cubePose.position.y
-                print(x, y)
                 angle = math.atan(y / x)
                 dist = math.hypot(x, y)
                 if(angle > 0):
                     RobotSM.lastDir = Direction.Right
                 else:
                     RobotSM.lastDir = Direction.Left
-                print(RobotSM.cubePose.rotation.angle_z.degrees)
                 cubeAngle = RobotSM.cubePose.rotation.angle_z.degrees
-                print("cube ", cubeAngle)
                 if(cubeAngle < 25 and cubeAngle > -25):
                     RobotSM.at_side()
                     await robot.say_text("Searching", in_parallel=True).wait_for_completed()
