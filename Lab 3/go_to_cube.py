@@ -226,6 +226,12 @@ async def run(robot: cozmo.robot.Robot):
             # wait until object found
             event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=None)
             robot.stop_all_motors()
+
+            # Center the side before moving
+            print("turn_in_place")
+            # Calculate angle to the object
+            angle_to_object = math.atan2(event.obj.pose.position.y - robot.pose.position.y, event.obj.pose.position.x - robot.pose.position.x)
+            angle_to_object = math.degrees(angle_to_object)
             # check if object is desired cube
             if(event.obj.object_type == RobotSM.destCube.object_type):
                 RobotSM.cube_found()
