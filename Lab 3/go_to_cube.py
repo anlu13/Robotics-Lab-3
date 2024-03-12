@@ -85,10 +85,11 @@ def adjustPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
     diffX = currentX - originX
     diffY = currentY - originY
     originAngle = origin.rotation.angle_z.radians
-    print (originAngle)
     x = math.cos(originAngle) * diffX + math.sin(originAngle) * diffY
     y = math.cos(originAngle) * diffY - math.sin(originAngle) * diffX
-    angle_z = pose.rotation.angle_z - origin.rotation.angle_z
+    angle_z = origin.rotation.angle_z - pose.rotation.angle_z
+    print("c, r, e")
+    print (pose.rotation.angle_z, origin.rotation.angle_z, angle_z)
 
     return cozmo.util.Pose(x, y, 0, angle_z=angle_z)
 
@@ -203,6 +204,21 @@ async def run(robot: cozmo.robot.Robot):
     await robot.say_text("Waiting", in_parallel=True).wait_for_completed()
 
     RobotSM = RobotMachine()
+    async def moved_handler(evt, **kwargs):
+        if(event.obj.object_type == RobotSM.destCube.object_type):
+            RobotSM.cubePose = evt.pose
+            RobotSM.cubePose = poseByFace(RobotSM)
+            RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
+            x = RobotSM.cubePose.position.x
+            y = RobotSM.cubePose.position.y
+            angle = math.atan(y / x)
+            dist = math.hypot(x, y)
+            speedL = dist / 5 - angle * 30
+            speedR = dist / 5 + angle * 30
+            await robot.drive_wheels(speedL, speedR, duration=None)
+
+    robot.add_event_handler(cozmo.objects.EvtObjectMoving, moved_handler)
+
     while(True):
         if(RobotSM.waiting.is_active):
             # get side selection from user
@@ -227,13 +243,12 @@ async def run(robot: cozmo.robot.Robot):
         elif(RobotSM.moving.is_active):
             try:
                 # ensure cube is still visible
-                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
+                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=3)
                 # grab cube pose
                 RobotSM.cubePose = event.pose
                 # get pose w.r.t robot
-                # TODO: Change pose so that desired face is considered front
-                print(robot.pose.position)
-                print(RobotSM.cubePose.position)
+                print("robot", robot.pose.position)
+                print("cube", RobotSM.cubePose.position)
                 RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
                 RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
@@ -256,8 +271,9 @@ async def run(robot: cozmo.robot.Robot):
                     await robot.say_text("Finding Side", in_parallel=True).wait_for_completed()
                 else:
                     # move to cube
-                    await robot.drive_wheels(dist / 10 + angle * 5, 
-                                             dist / 10 - angle * 5)
+                    speedL = dist / 5 - angle * 30
+                    speedR = dist / 5 + angle * 30
+                    await robot.drive_wheels(speedL, speedR, duration=None)
             except asyncio.exceptions.TimeoutError:
                 await robot.drive_wheels(0, 0, duration=1)
                 RobotSM.cube_lost()
@@ -277,28 +293,29 @@ async def run(robot: cozmo.robot.Robot):
                 print(x, y)
                 angle = math.atan(y / x)
                 dist = math.hypot(x, y)
-                if(angle < 0):
+                if(angle > 0):
                     RobotSM.lastDir = Direction.Right
                 else:
                     RobotSM.lastDir = Direction.Left
                 print(RobotSM.cubePose.rotation.angle_z.degrees)
                 cubeAngle = RobotSM.cubePose.rotation.angle_z.degrees
+                print(cubeAngle)
                 if(cubeAngle < 20 and cubeAngle > -20):
                     RobotSM.at_side()
                 elif(cubeAngle < 0):
                     await robot.drive_wheels(40, -40, duration=2)
-                    time = RobotSM.cubePose.rotation.angle_z.degrees / 17.5
-                    await robot.drive_wheels(27.5, 65, duration=time)
-                    await robot.drive_wheels(0, 0, duration=2)
+                    t = -1 * cubeAngle/ 25
+                    print(t)
+                    await robot.drive_wheels(27.5, 65, duration=t)
                     await robot.drive_wheels(-20, 20, duration=1.5)
                     RobotSM.lastDir = Direction.Left
                     RobotSM.cube_lost()
                     await robot.say_text("Searching", in_parallel=True).wait_for_completed()
                 else:
                     await robot.drive_wheels(-40, 40, duration=2)
-                    time = -1 * RobotSM.cubePose.rotation.angle_z.degrees / 17.5
-                    await robot.drive_wheels(65, 27.5, duration=time)
-                    await robot.drive_wheels(0, 0, duration=2)
+                    t = cubeAngle / 25
+                    print(t)
+                    await robot.drive_wheels(65, 27.5, duration=t)
                     await robot.drive_wheels(20, -20, duration=1.5)
                     RobotSM.lastDir = Direction.Right
                     RobotSM.cube_lost()
