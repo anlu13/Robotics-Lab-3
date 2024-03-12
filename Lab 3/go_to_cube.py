@@ -30,7 +30,7 @@ aroundImg = cozmo.oled_face.convert_image_to_screen_data(aroundImg, invert_image
 Circles2 = cozmo.objects.CustomObjectMarkers.Circles2
 Circles3 = cozmo.objects.CustomObjectMarkers.Circles3
 Circles4 = cozmo.objects.CustomObjectMarkers.Circles4
-Triangles5 = cozmo.objects.CustomObjectMarkers.Triangles5
+Triangles2 = cozmo.objects.CustomObjectMarkers.Triangles2
 Triangles3 = cozmo.objects.CustomObjectMarkers.Triangles3
 Triangles4 = cozmo.objects.CustomObjectMarkers.Triangles4
 Diamonds2 = cozmo.objects.CustomObjectMarkers.Diamonds2
@@ -57,8 +57,8 @@ def getSide():
             return Circles3
         elif(side == "C4"):
             return Circles4
-        elif(side == "T5"):
-            return Triangles5
+        elif(side == "T2"):
+            return Triangles2
         elif(side == "T3"):
             return Triangles3
         elif(side == "T4"):
@@ -101,7 +101,7 @@ def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(180)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
-    if(face == Triangles5 or face == Hexagons2):
+    if(face == Triangles2 or face == Hexagons2):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(90)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
@@ -127,10 +127,10 @@ def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
 async def run(robot: cozmo.robot.Robot):
     # Define the two cubes as custom objects
     cube1 = await robot.world.define_custom_box(CustomObjectTypes.CustomType00, Circles2, Circles3,
-                                                Circles4, Triangles5, Triangles3, Triangles4, CubeSide, 
+                                                Circles4, Triangles4, Triangles3, Triangles2, CubeSide, 
                                                 CubeSide, CubeSide, MarkerSide, MarkerSide, True)
-    cube2 = await robot.world.define_custom_box(CustomObjectTypes.CustomType01, Diamonds2, Diamonds3, 
-                                                Diamonds4, Hexagons4, Hexagons3, Hexagons2, CubeSide, 
+    cube2 = await robot.world.define_custom_box(CustomObjectTypes.CustomType01, Diamonds2, Hexagons3, 
+                                                Diamonds3, Diamonds4, Hexagons2, Hexagons4, CubeSide, 
                                                 CubeSide, CubeSide, MarkerSide, MarkerSide, True)
     if(cube1 is None or cube2 is None):
         print("Failed cubes")
@@ -138,7 +138,7 @@ async def run(robot: cozmo.robot.Robot):
 
     # Get corresponding cube from side
     def getCube(side):
-        if(side in [Circles2, Circles3, Circles4, Triangles5, Triangles3, Triangles4]):
+        if(side in [Circles2, Circles3, Circles4, Triangles4, Triangles3, Triangles2]):
             return cube1
         else:
             return cube2
