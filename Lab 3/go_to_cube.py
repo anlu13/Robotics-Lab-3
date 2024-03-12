@@ -7,6 +7,7 @@ from cozmo.objects import CustomObjectTypes, CustomObjectMarkers
 from statemachine import StateMachine, State
 from enum import Enum
 from PIL import Image
+from cozmo.util import degrees
 
 # Images that will be displayed on the robot's face
 waitingImg = Image.open("Cozmo_Faces/Waiting.png")
@@ -200,7 +201,12 @@ async def run(robot: cozmo.robot.Robot):
             self.destCube = getCube(self.destMarker)
             print("side found!")
     
+
     await robot.say_text("Waiting", in_parallel=True).wait_for_completed()
+    
+    # reset head position
+    await robot.set_head_angle(degrees(0)).wait_for_completed()
+    print("set_head_angle")
 
     RobotSM = RobotMachine()
     while(True):
