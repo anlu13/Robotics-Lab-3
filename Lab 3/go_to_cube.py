@@ -22,7 +22,7 @@ movingImg = Image.open("Cozmo_Faces/Moving.png")
 movingImg = movingImg.resize(cozmo.oled_face.dimensions(), Image.NEAREST)
 movingImg = cozmo.oled_face.convert_image_to_screen_data(movingImg, invert_image=True)
 
-aroundImg = Image.open("Cozmo_Faces/Waiting.png")
+aroundImg = Image.open("Cozmo_Faces/Around.png")
 aroundImg = aroundImg.resize(cozmo.oled_face.dimensions(), Image.NEAREST)
 aroundImg = cozmo.oled_face.convert_image_to_screen_data(aroundImg, invert_image=True)
 
@@ -30,7 +30,7 @@ aroundImg = cozmo.oled_face.convert_image_to_screen_data(aroundImg, invert_image
 Circles2 = cozmo.objects.CustomObjectMarkers.Circles2
 Circles3 = cozmo.objects.CustomObjectMarkers.Circles3
 Circles4 = cozmo.objects.CustomObjectMarkers.Circles4
-Triangles2 = cozmo.objects.CustomObjectMarkers.Triangles2
+Triangles5 = cozmo.objects.CustomObjectMarkers.Triangles5
 Triangles3 = cozmo.objects.CustomObjectMarkers.Triangles3
 Triangles4 = cozmo.objects.CustomObjectMarkers.Triangles4
 Diamonds2 = cozmo.objects.CustomObjectMarkers.Diamonds2
@@ -57,8 +57,8 @@ def getSide():
             return Circles3
         elif(side == "C4"):
             return Circles4
-        elif(side == "T2"):
-            return Triangles2
+        elif(side == "T5"):
+            return Triangles5
         elif(side == "T3"):
             return Triangles3
         elif(side == "T4"):
@@ -88,7 +88,7 @@ def adjustPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
     originAngle = origin.rotation.angle_z.radians
     x = math.cos(originAngle) * diffX + math.sin(originAngle) * diffY
     y = math.cos(originAngle) * diffY - math.sin(originAngle) * diffX
-    angle_z = origin.rotation.angle_z - pose.rotation.angle_z
+    angle_z = pose.rotation.angle_z - origin.rotation.angle_z
     print("c, r, e")
     print (pose.rotation.angle_z, origin.rotation.angle_z, angle_z)
 
@@ -101,7 +101,7 @@ def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(180)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
-    if(face == Triangles2 or face == Hexagons2):
+    if(face == Triangles5 or face == Hexagons2):
         newAngle = pose.rotation.angle_z + cozmo.util.degrees(90)
         return cozmo.util.Pose(pose.position.x, pose.position.y, pose.position.z,
                                angle_z=newAngle)
@@ -127,7 +127,7 @@ def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
 async def run(robot: cozmo.robot.Robot):
     # Define the two cubes as custom objects
     cube1 = await robot.world.define_custom_box(CustomObjectTypes.CustomType00, Circles2, Circles3,
-                                                Circles4, Triangles2, Triangles3, Triangles4, CubeSide, 
+                                                Circles4, Triangles5, Triangles3, Triangles4, CubeSide, 
                                                 CubeSide, CubeSide, MarkerSide, MarkerSide, True)
     cube2 = await robot.world.define_custom_box(CustomObjectTypes.CustomType01, Diamonds2, Diamonds3, 
                                                 Diamonds4, Hexagons4, Hexagons3, Hexagons2, CubeSide, 
@@ -138,7 +138,7 @@ async def run(robot: cozmo.robot.Robot):
 
     # Get corresponding cube from side
     def getCube(side):
-        if(side in [Circles2, Circles3, Circles4, Triangles2, Triangles3, Triangles4]):
+        if(side in [Circles2, Circles3, Circles4, Triangles5, Triangles3, Triangles4]):
             return cube1
         else:
             return cube2
@@ -168,22 +168,26 @@ async def run(robot: cozmo.robot.Robot):
             super(RobotMachine, self).__init__()
 
         def on_enter_waiting(self):
-            robot.display_oled_face_image(waitingImg, 1000000, in_parallel=True)
+            robot.display_oled_face_image(waitingImg, 1000, in_parallel=True)
+            time.sleep(1)
             print("Starting waiting")
         def on_exit_waiting(self):
             print("Stopping waiting")
         def on_enter_searching(self):
-            robot.display_oled_face_image(searchingImg, 1000000, in_parallel=True)
+            robot.display_oled_face_image(searchingImg, 1000, in_parallel=True)
+            time.sleep(1)
             print("Starting searching")
         def on_exit_searching(self):
             print("Stopping searching")
-        async def on_enter_moving(self):
-            robot.display_oled_face_image(movingImg, 1000000, in_parallel=True)
+        def on_enter_moving(self):
+            robot.display_oled_face_image(movingImg, 1000, in_parallel=True)
+            time.sleep(1)
             print("Starting moving")
         def on_exit_moving(self):
             print("Stopping moving")
         def on_enter_driving_around(self):
-            robot.display_oled_face_image(aroundImg, 1000000, in_parallel=True)
+            robot.display_oled_face_image(aroundImg, 1000, in_parallel=True)
+            time.sleep(1)
             print("Starting Driving Around")
         def on_exit_driving_around(self):
             print("Stopping Driving Around")
@@ -194,6 +198,9 @@ async def run(robot: cozmo.robot.Robot):
             self.destCube = getCube(marker1)
             self.secondaryMarker = marker2
 
+        def before_cube_found(self):
+            print("Starting moving")
+        
         # set secondary destination as primary
         def before_at_side(self):
             temp = self.destMarker
@@ -204,13 +211,16 @@ async def run(robot: cozmo.robot.Robot):
     
 
     await robot.say_text("Waiting", in_parallel=True).wait_for_completed()
+    await robot.display_oled_face_image(waitingImg, 1000, in_parallel=True).wait_for_completed()
     
     # reset head position
     await robot.set_head_angle(degrees(-10)).wait_for_completed()
+    await robot.set_lift_height(0).wait_for_completed()
     print("set_head_angle")
 
     RobotSM = RobotMachine()
     async def moved_handler(evt, **kwargs):
+        print("movement")
         if(event.obj.object_type == RobotSM.destCube.object_type):
             RobotSM.cubePose = evt.pose
             RobotSM.cubePose = poseByFace(RobotSM)
@@ -219,8 +229,8 @@ async def run(robot: cozmo.robot.Robot):
             y = RobotSM.cubePose.position.y
             angle = math.atan(y / x)
             dist = math.hypot(x, y)
-            speedL = dist / 5 - angle * 30
-            speedR = dist / 5 + angle * 30
+            speedL = dist / 5 - angle * 50
+            speedR = dist / 5 + angle * 50
             await robot.drive_wheels(speedL, speedR, duration=None)
 
     robot.add_event_handler(cozmo.objects.EvtObjectMoving, moved_handler)
@@ -245,18 +255,22 @@ async def run(robot: cozmo.robot.Robot):
             # check if object is desired cube
             if(event.obj.object_type == RobotSM.destCube.object_type):
                 RobotSM.cube_found()
+                await robot.display_oled_face_image(movingImg, 1000, in_parallel=True).wait_for_completed()
+                print("Starting moving")
                 await robot.say_text("Moving", in_parallel=True).wait_for_completed()
         elif(RobotSM.moving.is_active):
             try:
                 # ensure cube is still visible
-                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=3)
+                event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
                 # grab cube pose
                 RobotSM.cubePose = event.pose
                 # get pose w.r.t robot
                 print("robot", robot.pose.position)
                 print("cube", RobotSM.cubePose.position)
-                RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
+                print("Before AP: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
+                print("Before PBF: ", RobotSM.cubePose.rotation.angle_z)
+                RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
                 x = RobotSM.cubePose.position.x
                 y = RobotSM.cubePose.position.y
@@ -275,10 +289,11 @@ async def run(robot: cozmo.robot.Robot):
                     await robot.drive_wheels(0, 0, duration=1)
                     RobotSM.at_cube()
                     await robot.say_text("Finding Side", in_parallel=True).wait_for_completed()
+                    await robot.display_oled_face_image(aroundImg, 1000, in_parallel=True).wait_for_completed()
                 else:
                     # move to cube
-                    speedL = dist / 5 - angle * 30
-                    speedR = dist / 5 + angle * 30
+                    speedL = dist / 7 - angle * 25
+                    speedR = dist / 7 + angle * 25
                     await robot.drive_wheels(speedL, speedR, duration=None)
             except asyncio.exceptions.TimeoutError:
                 await robot.drive_wheels(0, 0, duration=1)
@@ -291,7 +306,9 @@ async def run(robot: cozmo.robot.Robot):
                 # adjust pose
                 print(robot.pose.position)
                 print(RobotSM.cubePose.position)
+                print("Before PBF: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = poseByFace(RobotSM.cubePose, RobotSM.destMarker)
+                print("Before AP: ", RobotSM.cubePose.rotation.angle_z)
                 RobotSM.cubePose = adjustPose(RobotSM.cubePose, robot.pose)
                 # get the robot to face the cube
                 x = RobotSM.cubePose.position.x
@@ -305,7 +322,7 @@ async def run(robot: cozmo.robot.Robot):
                     RobotSM.lastDir = Direction.Left
                 print(RobotSM.cubePose.rotation.angle_z.degrees)
                 cubeAngle = RobotSM.cubePose.rotation.angle_z.degrees
-                print(cubeAngle)
+                print("cube ", cubeAngle)
                 if(cubeAngle < 20 and cubeAngle > -20):
                     RobotSM.at_side()
                 elif(cubeAngle < 0):
@@ -326,12 +343,6 @@ async def run(robot: cozmo.robot.Robot):
                     RobotSM.lastDir = Direction.Right
                     RobotSM.cube_lost()
                     await robot.say_text("Searching", in_parallel=True).wait_for_completed()
-                    
-                # calculate angle needed to travel to specified face
-                # turn to face
-                #   turning radius = ((dist between wheels) / 2) * (vel outer + vel inner) / (vel outer - vel inner)
-                #   needs to either somehow keep pose in memory and continue to update it or create desired end pose
-                # once at face RobotSM.at_side() (will swap to second cube)
             except asyncio.exceptions.TimeoutError:
                 RobotSM.cube_lost()
                 await robot.say_text("Searching", in_parallel=True).wait_for_completed()
