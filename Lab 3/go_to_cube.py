@@ -1,6 +1,7 @@
 import asyncio
 import cozmo
-import time
+import cozmo.audio
+import time as time
 import math
 from cozmo.objects import CustomObjectTypes, CustomObjectMarkers
 from statemachine import StateMachine, State
@@ -59,14 +60,14 @@ def getSide():
 
 # Calculate pose w.r.t other pose
 def adjustPose(pose: cozmo.util.Pose, origin: cozmo.util.Pose):
-    x = pose.position.x - origin.position.x
-    y = pose.position.y - origin.position.y
+    originAngle = origin.rotation.angle_z.radians
+    x = origin.position.x + math.cos(originAngle) - math.sin(originAngle)
+    y = origin.position.y + math.cos(originAngle) + math.sin(originAngle)
     angle_z = pose.rotation.angle_z - origin.rotation.angle_z
 
     return cozmo.util.Pose(x, y, 0, angle_z=angle_z)
 
 def poseByFace(pose: cozmo.util.Pose, face: cozmo.objects._CustomObjectMarker):
-    print(pose.rotation.euler_angles)
     if(face == Circles2 or face == Diamonds2):
         return pose
     if(face == Circles3 or face == Diamonds3):
@@ -147,7 +148,7 @@ async def run(robot: cozmo.robot.Robot):
             print("Starting searching")
         def on_exit_searching(self):
             print("Stopping searching")
-        def on_enter_moving(self):
+        async def on_enter_moving(self):
             print("Starting moving")
         def on_exit_moving(self):
             print("Stopping moving")
@@ -169,6 +170,8 @@ async def run(robot: cozmo.robot.Robot):
             self.secondaryMarker = temp
             self.destCube = getCube(self.destMarker)
             print("side found!")
+    
+    await robot.say_text("Waiting").wait_for_completed()
 
     RobotSM = RobotMachine()
     while(True):
@@ -176,6 +179,7 @@ async def run(robot: cozmo.robot.Robot):
             # get side selection from user
             side1 = getSide()
             side2 = getSide()
+            await robot.say_text("Searching").wait_for_completed()
             RobotSM.receive_side(side1, side2)
         # search for cube
         elif(RobotSM.searching.is_active):
@@ -190,6 +194,7 @@ async def run(robot: cozmo.robot.Robot):
             # check if object is desired cube
             if(event.obj.object_type == RobotSM.destCube.object_type):
                 RobotSM.cube_found()
+                await robot.say_text("Moving").wait_for_completed()
         elif(RobotSM.moving.is_active):
             try:
                 # ensure cube is still visible
@@ -206,6 +211,7 @@ async def run(robot: cozmo.robot.Robot):
                 angle = math.atan(y / x)
                 dist = math.hypot(x, y)
                 # set search direction
+                print(angle)
                 if(angle > 0):
                     RobotSM.lastDir = Direction.Right
                 else:
@@ -215,13 +221,15 @@ async def run(robot: cozmo.robot.Robot):
                     # change states
                     await robot.drive_wheels(0, 0, duration=1)
                     RobotSM.at_cube()
+                    await robot.say_text("Finding Side").wait_for_completed()
                 else:
                     # move to cube
-                    await robot.drive_wheels(dist / 6 + angle, 
-                                             dist / 6 - angle)
+                    await robot.drive_wheels(dist / 6 + angle * 5, 
+                                             dist / 6 - angle * 5)
             except asyncio.exceptions.TimeoutError:
                 await robot.drive_wheels(0, 0, duration=1)
                 RobotSM.cube_lost()
+                await robot.say_text("Searching").wait_for_completed()
         elif(RobotSM.driving_around.is_active):
             try:
                 event = await robot.wait_for(cozmo.objects.EvtObjectObserved, timeout=1)
@@ -252,6 +260,7 @@ async def run(robot: cozmo.robot.Robot):
                     await robot.drive_wheels(-20, 20, duration=1.5)
                     RobotSM.lastDir = Direction.Left
                     RobotSM.cube_lost()
+                    await robot.say_text("Searching").wait_for_completed()
                 else:
                     await robot.drive_wheels(-40, 40, duration=2)
                     time = -1 * RobotSM.cubePose.rotation.angle_z.degrees / 17.5
@@ -260,6 +269,7 @@ async def run(robot: cozmo.robot.Robot):
                     await robot.drive_wheels(20, -20, duration=1.5)
                     RobotSM.lastDir = Direction.Right
                     RobotSM.cube_lost()
+                    await robot.say_text("Searching").wait_for_completed()
                     
                 # calculate angle needed to travel to specified face
                 # turn to face
@@ -268,6 +278,7 @@ async def run(robot: cozmo.robot.Robot):
                 # once at face RobotSM.at_side() (will swap to second cube)
             except asyncio.exceptions.TimeoutError:
                 RobotSM.cube_lost()
+                await robot.say_text("Searching").wait_for_completed()
             
 
 if __name__ == '__main__':
