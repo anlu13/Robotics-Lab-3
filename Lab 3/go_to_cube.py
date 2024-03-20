@@ -213,6 +213,7 @@ async def run(robot: cozmo.robot.Robot):
     await robot.set_head_angle(degrees(-10)).wait_for_completed()
     await robot.set_lift_height(0).wait_for_completed()
 
+    yLast = 0
     RobotSM = RobotMachine()
 
     while(True):
@@ -252,13 +253,16 @@ async def run(robot: cozmo.robot.Robot):
                 # Positions: x-axis is directly in front of bot, y-axis is to left, z-axis is up
                 x = RobotSM.cubePose.position.x
                 y = RobotSM.cubePose.position.y
+                print(x, y)
                 angle = math.atan(y / x)
                 dist = math.hypot(x, y)
+                print(angle)
                 # set search direction
-                if(angle > 0):
+                if(y > yLast):
                     RobotSM.lastDir = Direction.Right
                 else:
                     RobotSM.lastDir = Direction.Left
+                yLast = y
                 # determine if robot is at cube
                 if(dist < 80):
                     # change states
@@ -268,9 +272,9 @@ async def run(robot: cozmo.robot.Robot):
                     await robot.display_oled_face_image(aroundImg, 1000, in_parallel=True).wait_for_completed()
                 else:
                     # move to cube
-                    speedL = dist / 7 - angle * 25
-                    speedR = dist / 7 + angle * 25
-                    await robot.drive_wheels(speedL, speedR, duration=None)
+                    speedL = dist / 7 - angle * 50
+                    speedR = dist / 7 + angle * 50
+                    await robot.drive_wheels(speedL, speedR)
             except asyncio.exceptions.TimeoutError:
                 await robot.drive_wheels(0, 0, duration=1)
                 RobotSM.cube_lost()
@@ -289,7 +293,7 @@ async def run(robot: cozmo.robot.Robot):
                 y = RobotSM.cubePose.position.y
                 angle = math.atan(y / x)
                 dist = math.hypot(x, y)
-                if(angle > 0):
+                if(angle < 0):
                     RobotSM.lastDir = Direction.Right
                 else:
                     RobotSM.lastDir = Direction.Left
